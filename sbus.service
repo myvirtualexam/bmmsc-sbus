@@ -1,0 +1,9 @@
+[Unit]
+Description=S.BUS systemd service
+
+[Service]
+Type=simple
+ExecStart=/opt/ctrl/sbus
+
+[Install]
+WantedBy=multi-user.target
