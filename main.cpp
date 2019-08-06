@@ -40,6 +40,8 @@ int main(int argc, char *argv[]) {
     _sbus_min = reader.GetInteger("sbus", "sbus_min", 712);
     _sbus_center = reader.GetInteger("sbus", "sbus_center", 1024);
     _sbus_max = reader.GetInteger("sbus", "sbus_max", 1811);
+    _zoom_wake_up_time = reader.GetInteger("sbus", "zoom_wake_up_time", 0);
+    _zoom_total_time = reader.GetInteger("sbus", "zoom_total_time", 0);
 
     _channel1 = reader.Get("sbus", "channel1", "");
     _channel2 = reader.Get("sbus", "channel2", "");
@@ -94,6 +96,31 @@ int main(int argc, char *argv[]) {
 
         if(strcmp(_cmd.c_str(),"")!=0) s._frmt(_cmd);
           else continue;
+      }
+
+      if(s._zoom==true) {
+        if(_start_time==0) {
+          _start_time = TimeHelpers::TimeFromEpochInMilliSeconds<uint64_t>();
+          //printf("\npercentage: %i", _zoom_percentage);
+          _zoom_time = ((_zoom_percentage>_new_zoom?_zoom_percentage-_new_zoom:_new_zoom-_zoom_percentage) * _zoom_total_time)/100;
+          //printf("\nzoom time: %i, new value: %i", ((_zoom_percentage>_new_zoom?_zoom_percentage-_new_zoom:_new_zoom-_zoom_percentage) * _zoom_total_time)/100, _new_zoom);
+        }
+        _end_time = TimeHelpers::TimeFromEpochInMilliSeconds<uint64_t>();
+        if(_end_time - _start_time >= _zoom_wake_up_time) {
+
+          if(_zoom_start==0) {
+            _zoom_start = TimeHelpers::TimeFromEpochInMilliSeconds<uint64_t>();
+          }
+          _zoom_end = TimeHelpers::TimeFromEpochInMilliSeconds<uint64_t>();
+
+          if(_zoom_end - _zoom_start >= _zoom_time) {
+            //printf("\nzooming done");
+            _zoom_percentage = _new_zoom;
+            _channels[4] = _sbus_center;
+            //_zoom_time = 0;
+            s._zoom=false;
+          }
+        }
       }
 
       s._write(_channels);
@@ -227,6 +254,7 @@ void _end(int signum) {
 }
 
 void SBUS::_channel_def(std::string _channel, int& _val) {
+
   std::regex base_regex("\\[([0-9]+)\\]");
   std::smatch base_match;
   try {
@@ -302,6 +330,22 @@ void SBUS::_channel_def(std::string _channel, int& _val) {
         __cycles++;
       }
     }
+    if(strcmp(_types[_type].c_str(), "zoom")==0) {
+      _zoom = true;
+      _new_zoom = _val;
+      _start_time = 0;
+      _zoom_start = 0;
+      if(_val > _zoom_percentage) {
+        _val = _sbus_max;
+      }
+      else {
+        _val = _sbus_min;
+      }
+      std::ofstream ofs;
+      ofs.open(CMDFILE, std::ofstream::out);
+      ofs << "";
+      ofs.close();
+    }
     _val = round(_val);
   } catch (std::regex_error& e) {
     printf("Compilation error\n");
@@ -355,5 +399,6 @@ void SBUS::_frmt(std::string _cmd) {
       _channel_def(_channel18, _val);
       break;
   }
+
   _channels[_chan-1] = _val;
 }
